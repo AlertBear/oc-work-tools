@@ -1,0 +1,31 @@
+#!/bin/sh
+
+usage()
+{
+   echo "Usage: $0"
+   echo "-c Connect from console"
+   echo "-s Connect through ssh protocal"
+}
+if [ $# -eq 0 ];then
+   usage
+   exit 1
+fi
+
+for i in $*
+do 
+    case $1 in 
+            -c) /ws/opg-lab-tools/connect $2
+                shift 2
+		;;
+
+            -s) ssh -l root $2
+		shift 2
+		;;
+            -*) 
+                echo "invalid option,use:-c or -s"
+                return 1
+                ;;
+    esac
+done
+
+	

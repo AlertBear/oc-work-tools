@@ -1,0 +1,86 @@
+#!/bin/sh
+
+typeset SYSTEM
+typeset TARGET
+typeset ARCH
+typeset PACKAGE_DIR
+typeset PACKAGE_LOCATION
+
+check_arch()
+{
+  ARCH=`rsh -n ${TARGET} uname -p`
+  echo "The arch of ${TARGET} if $ARCH "
+ if [ $? != 0 ];then
+   echo "Failed to check the arch of the target machine"
+ fi
+}
+
+check_dir()
+{
+  if [ -f ${PACKAGE_DIR}];then
+     rm -rf $PACKAGE_DIR
+  fi
+}
+
+rsh_mkdir()
+{
+  PACKAGE_DIR="/export/home/dj_package_${SYSTEM}"
+  rsh -n $TARGET "if [ -f $PACKAGE_DIR ];then \
+                     rm -rf $PACKAGE_DIR;
+                  fi"
+  rsh -n $TARGET mkdir ${PACKAGE_DIR}
+  if [ $? != 0 ];then
+     echo "Can not create $PACKAGE_DIR on the $TARGET"
+  fi
+}
+
+usage()
+{
+  echo "Usage: $0"
+  echo "       -s System platform (eg:s11 or s12)"
+  echo "       -t Machine which you want to scp the package to(IP or Hostname)"
+}
+           
+#
+#
+# MAIN---------
+#
+#
+if [ $# -eq 0 ];
+then
+   usage
+   exit 1
+fi
+
+for i in $*
+do 
+   case $1 in 
+          -s)  
+              SYSTEM=$2
+              shift 2
+              ;;
+          -t) 
+              TARGET=$2
+              shift 2
+              ;;
+          -*)
+             echo "Invalid option:$1"
+             usage
+             exit 1 
+	     ;;
+  esac 
+done
+
+check_arch
+rsh_mkdir
+#rsh -n ${TARGET} check_dir
+
+if [ "X${SYSTEM}" = "Xs11" ]; then
+   PACKAGE_LOCATION="/ws/stcnv-gate/packages/${ARCH}"
+else
+   PACKAGE_LOCATION="/ws/stc12-clone-prc/packages/${ARCH}"
+fi
+
+scp -r $PACKAGE_LOCATION/SUNWstc-checkenv $PACKAGE_LOCATION/SUNWstc-stf \
+       $PACKAGE_LOCATION/SUNWstc-netperf2 $PACKAGE_LOCATION/SUNWstc-genutils \
+       $PACKAGE_LOCATION/SUNWstc-driver-nicdrv root@${TARGET}:${PACKAGE_DIR}

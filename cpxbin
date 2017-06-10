@@ -1,0 +1,117 @@
+#!/bin/sh
+#
+#funtion:
+#        Copy tools related with arch of nicdrv and netperf bin
+#Author:
+#       daijie.x.guo@oracle.com
+#Version:
+#      V1.0 
+################################################################
+
+
+usage()
+{
+   echo "Usage:$0"
+   echo "      Pls add the machine name(eg:rocketstart or 10.113.198.76)"
+}
+mkdir_tools()
+{
+   rsh $TARGET mkdir $TOOLS_DIR
+}
+
+copy_tools()
+{
+   if [ "X${SYSTEM}" == "X5.11" ];then
+      if [ "X$1" == "Xi386" ];then
+#         scp -r /net/stcnv-gate/packages/i386/SUNWstc-netperf2/reloc/bin/* \
+#               /net/stcnv-gate/packages/i386/SUNWstc-driver-nicdrv/reloc/tools/irmtool/irm_test/* \
+#                /net/stcnv-gate/packages/i386/SUNWstc-driver-nicdrv/reloc/tools/irmtool/irm_driver/* \
+#               /net/stcnv-gate/packages/i386/SUNWstc-driver-nicdrv/reloc/tools/misc/* \
+#                /net/stcnv-gate/packages/i386/SUNWstc-driver-nicdrv/reloc/tools/multicast/* \
+#               /net/stcnv-gate/packages/i386/SUNWstc-driver-nicdrv/reloc/tools/nfscorrupt/* \
+#               root@TARGET:$TOOLS_DIR
+
+         scp -r /ws/stcnv-gate/packages/i386/SUNWstc-netperf2/reloc/bin/* \
+                                                           root@$TARGET:/opt/SUNWstc-netperf2/bin/ 
+         scp -r /ws/stcnv-gate/packages/i386/SUNWstc-driver-nicdrv/reloc/tools/irmtool/irm_test/* \
+                                                           root@$TARGET:/opt/SUNWstc-driver-nicdrv/tools/irmtool/irm_test/
+         scp -r /ws/stcnv-gate/packages/i386/SUNWstc-driver-nicdrv/reloc/tools/irmtool/irm_driver/* \
+                                                           root@$TARGET:/opt/SUNWstc-driver-nicdrv/tools/irmtool/irm_driver/
+         scp -r /ws/stcnv-gate/packages/i386/SUNWstc-driver-nicdrv/reloc/tools/misc/* \
+                                                           root@$TARGET:/opt/SUNWstc-driver-nicdrv/tools/misc/
+         scp -r /ws/stcnv-gate/packages/i386/SUNWstc-driver-nicdrv/reloc/tools/multicast/* \
+                                                           root@$TARGET:/opt/SUNWstc-driver-nicdrv/tools/multicast/
+         scp -r /ws/stcnv-gate/packages/i386/SUNWstc-driver-nicdrv/reloc/tools/nfscorrupt/* \
+                                                           root@$TARGET:/opt/SUNWstc-driver-nicdrv/tools/nfscorrupt/
+         scp -r /ws/stcnv-gate/packages/i386/SUNWstc-driver-nicdrv/reloc/tools/pmtool/* \
+                                                           root@$TARGET:/opt/SUNWstc-driver-nicdrv/tools/pmtool/
+      else 
+         scp -r /ws/stcnv-gate/packages/sparc/SUNWstc-netperf2/reloc/bin/* \
+                                                           root@$TARGET:/opt/SUNWstc-netperf2/bin/ 
+         scp -r /ws/stcnv-gate/packages/sparc/SUNWstc-driver-nicdrv/reloc/tools/irmtool/irm_test/* \
+                                                           root@$TARGET:/opt/SUNWstc-driver-nicdrv/tools/irmtool/irm_test/
+         scp -r /ws/stcnv-gate/packages/sparc/SUNWstc-driver-nicdrv/reloc/tools/irmtool/irm_driver/* \
+                                                           root@$TARGET:/opt/SUNWstc-driver-nicdrv/tools/irmtool/irm_driver/
+         scp -r /ws/stcnv-gate/packages/sparc/SUNWstc-driver-nicdrv/reloc/tools/misc/* \
+                                                           root@$TARGET:/opt/SUNWstc-driver-nicdrv/tools/misc/
+         scp -r /ws/stcnv-gate/packages/sparc/SUNWstc-driver-nicdrv/reloc/tools/multicast/* \
+                                                           root@$TARGET:/opt/SUNWstc-driver-nicdrv/tools/multicast/
+         scp -r /ws/stcnv-gate/packages/sparc/SUNWstc-driver-nicdrv/reloc/tools/nfscorrupt/* \
+                                                           root@$TARGET:/opt/SUNWstc-driver-nicdrv/tools/nfscorrupt/
+         scp -r /ws/stcnv-gate/packages/sparc/SUNWstc-driver-nicdrv/reloc/tools/pmtool/* \
+                                                           root@$TARGET:/opt/SUNWstc-driver-nicdrv/tools/pmtool/
+      fi  
+ else 
+      if [ "X$1" == "Xi386" ];then 
+         scp -r /ws/stc12-clone-prc/packages/i386/SUNWstc-netperf2/reloc/bin/* \
+                                                           root@$TARGET:/opt/SUNWstc-netperf2/bin/ 
+         scp -r /ws/stc12-clone-prc/packages/i386/SUNWstc-driver-nicdrv/reloc/tools/irmtool/irm_test/* \
+                                                           root@$TARGET:/opt/SUNWstc-driver-nicdrv/tools/irmtool/irm_test/
+         scp -r /ws/stc12-clone-prc/packages/i386/SUNWstc-driver-nicdrv/reloc/tools/irmtool/irm_driver/* \
+                                                           root@$TARGET:/opt/SUNWstc-driver-nicdrv/tools/irmtool/irm_driver/
+         scp -r /ws/stc12-clone-prc/packages/i386/SUNWstc-driver-nicdrv/reloc/tools/misc/* \
+                                                           root@$TARGET:/opt/SUNWstc-driver-nicdrv/tools/misc/
+         scp -r /ws/stc12-clone-prc/packages/i386/SUNWstc-driver-nicdrv/reloc/tools/multicast/* \
+                                                           root@$TARGET:/opt/SUNWstc-driver-nicdrv/tools/multicast/
+         scp -r /ws/stc12-clone-prc/packages/i386/SUNWstc-driver-nicdrv/reloc/tools/nfscorrupt/* \
+                                                           root@$TARGET:/opt/SUNWstc-driver-nicdrv/tools/nfscorrupt/
+         scp -r /ws/stc12-clone-prc/packages/i386/SUNWstc-driver-nicdrv/reloc/tools/pmtool/* \
+                                                           root@$TARGET:/opt/SUNWstc-driver-nicdrv/tools/pmtool/
+      else 
+         scp -r /ws/stc12-clone-prc/packages/sparc/SUNWstc-netperf2/reloc/bin/* \
+                                                           root@$TARGET:/opt/SUNWstc-netperf2/bin/ 
+         scp -r /ws/stc12-clone-prc/packages/sparc/SUNWstc-driver-nicdrv/reloc/tools/irmtool/irm_test/* \
+                                                           root@$TARGET:/opt/SUNWstc-driver-nicdrv/tools/irmtool/irm_test/
+         scp -r /ws/stc12-clone-prc/packages/sparc/SUNWstc-driver-nicdrv/reloc/tools/irmtool/irm_driver/* \
+                                                           root@$TARGET:/opt/SUNWstc-driver-nicdrv/tools/irmtool/irm_driver/
+         scp -r /ws/stc12-clone-prc/packages/sparc/SUNWstc-driver-nicdrv/reloc/tools/misc/* \
+                                                           root@$TARGET:/opt/SUNWstc-driver-nicdrv/tools/misc/
+         scp -r /ws/stc12-clone-prc/packages/sparc/SUNWstc-driver-nicdrv/reloc/tools/multicast/* \
+                                                           root@$TARGET:/opt/SUNWstc-driver-nicdrv/tools/multicast/
+         scp -r /ws/stc12-clone-prc/packages/sparc/SUNWstc-driver-nicdrv/reloc/tools/nfscorrupt/* \
+                                                           root@$TARGET:/opt/SUNWstc-driver-nicdrv/tools/nfscorrupt/
+         scp -r /ws/stc12-clone-prc/packages/sparc/SUNWstc-driver-nicdrv/reloc/tools/pmtool/* \
+                                                           root@$TARGET:/opt/SUNWstc-driver-nicdrv/tools/pmtool/
+     fi
+  fi      
+}
+#
+#main
+#
+if [ $# -eq 0 ];then
+   usage
+   exit 1
+fi
+
+TARGET="$1"
+ARCH=`rsh -n $TARGET uname -p` 
+SYSTEM=`rsh $TARGET uname -a | awk '{print $3}'`
+TOOLS_DIR=/export/home/dj_tools_$ARCH
+
+if [ "$ARCH" == "i386" ];then
+    copy_tools sparc
+else
+    copy_tools i386
+fi
+
+
