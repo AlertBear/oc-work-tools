@@ -1,0 +1,104 @@
+#!/usr/bin/python
+# coding=utf-8
+
+import os
+import ConfigParser
+import Lrt
+import sys
+import traceback
+
+def main():
+
+    reserve_dict = {}
+    update_dict = {}
+    release_dict = {}
+
+    conf = ConfigParser.ConfigParser()
+    conf.read('./lrt.cfg')
+
+    username = conf.get('account', 'USERNAME')
+    password = conf.get('account', 'PASSWORD')
+
+    number = conf.get('machines', 'NUMBER')
+
+    hostname_list = conf.get('machines', 'HOSTNAME').split(',')
+    operation_list = conf.get('machines', 'OPERATION').split(',')
+    id_list = conf.get('machines', 'ID').split(',')
+    project_list = conf.get('machines', 'PROJECT').split(',')
+    days_list = conf.get('machines', 'DAYS').split(',')
+    comment_list = conf.get('machines', 'COMMENT').split(',')
+
+    if username is None or password is None:
+        print "username or password is None, please define in lrt.cfg file"
+        return 1
+    if len(hostname_list) != int(number):
+        print "HOSTNAME not match number %d" % int(number)
+        return 1
+    if len(operation_list) != int(number):
+        print "OPERATION not match number %d" % int(number)
+        return 1
+    if len(id_list) != int(number):
+        print "ID not match number %d" % int(number)
+        return 1
+    if len(project_list) != int(number):
+        print "PROJECT not match number %d" % int(number)
+        return 1
+    if len(days_list) != int(number):
+        print "DAYS not match number %d" % int(number)
+        return 1
+    if len(comment_list) != int(number):
+        print "COMMENT not match number %d" % int(number)
+        return 1
+
+    for i in range(0, int(number)):
+        host = hostname_list[i]
+        host_dict = {hostname_list[i]:{'operation': int(operation_list[i]),
+                                       'entry_id': id_list[i],
+                                       'project':project_list[i],
+                                       'days': days_list[i],
+                                       'comment': comment_list[i]}}
+        host_info_dict = host_dict.get(host)
+
+        if host_info_dict.get('operation') == 1:
+            host_info_dict.pop('operation')
+            reserve_dict.update({host:host_info_dict})
+        elif host_info_dict.get('operation') == 2:
+            host_info_dict.pop('operation')
+            update_dict.update({host:host_info_dict})
+        elif host_info_dict.get('operation') == 3:
+            host_info_dict.pop('operation')
+            release_dict.update({host:host_info_dict})
+        else:
+            print "Unknown operation, please check lrt.cfg file"
+
+    if len(reserve_dict.items()) != 0:
+        try:
+            print "Reserving %s ..." % reserve_dict.keys()
+            reserve = Lrt.Lrt(username, password, reserve_dict)
+            reserve.login()
+            reserve.reserveMachine()
+        except Exception,e:
+            print e
+            #traceback.print_exc()
+    if len(update_dict.items()) != 0:
+        try:
+            print "Updating %s ..." % update_dict.keys()
+            update = Lrt.Lrt(username, password, update_dict)
+            update.login()
+            update.updateMachine()
+        except Exception,e:
+            print e
+            #traceback.print_exc()
+    if len(release_dict.items()) != 0:
+        try:
+            print "Releasing %s ..." % release_dict.keys()
+            release = Lrt.Lrt(username, password, release_dict)
+            release.login()
+            release.releaseMachine()
+        except Exception,e:
+            print e
+            #traceback.print_exc()
+
+if __name__ == "__main__":
+    main()
+

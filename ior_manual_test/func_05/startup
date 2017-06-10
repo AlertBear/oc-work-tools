@@ -1,0 +1,97 @@
+#!/usr/bin/ksh -p
+
+. ../basic/common.kshlib
+
+source ../basic/test.cfg
+
+typeset logpath=${LOGPATH}
+typeset pf1=${PF_A}
+typeset pf2=${PF_B}
+
+typeset iod=${IOD}
+
+typeset port_wwn_pf1_vf0=${PORT_WWN_PF_A_VF0}
+typeset node_wwn_pf1_vf0=${NODE_WWN_PF_A_VF0}
+typeset port_wwn_pf2_vf0=${PORT_WWN_PF_B_VF0}
+typeset node_wwn_pf2_vf0=${NODE_WWN_PF_B_VF0}
+
+
+# destroy all the VFs which have been created 
+tmpfile=$(mktemp)
+ldm list-io|grep "${pf1}\.VF" > ${tmpfile}
+if [[ $? -eq 0 ]];then
+    while read uvf nVF nBUS udomain;do
+        if [[ ${udomain} != "" ]];then
+            ldm rm-io ${uvf} ${udomain}
+        fi    
+    done < ${tmpfile}
+    ldm destroy-vf -n max ${pf1}
+fi
+
+# create new VFs
+tmpfile1=$(mktemp)
+ldm create-vf port-wwn=${port_wwn_pf1_vf0} node-wwn=${node_wwn_pf1_vf0} ${pf1} > ${tmpfile1}
+if [[ $? != 0 ]];then
+    return 1
+else
+    vf0_pf1=$(awk -F':' '{print $2}' ${tmpfile1})
+    print "Created ${vf0_pf1}"
+fi
+
+tmpfile2=$(mktemp)
+ldm create-vf port-wwn=${port_wwn_pf2_vf0} node-wwn=${node_wwn_pf2_vf0} ${pf2} > ${tmpfile2}
+if [[ $? != 0 ]];then
+    return 1
+else
+    vf0_pf2=$(awk -F':' '{print $2}' ${tmpfile2})
+    print "Created ${vf0_pf2}"
+fi
+
+ldm add-io ${vf0_pf1} ${iod}
+[[ $? -ne 0 ]] && return 1
+
+ldm add-io ${vf0_pf2} ${iod}
+[[ $? -ne 0 ]] && return 1
+
+ldm stop -r ${iod}
+
+if [[ ! -d ${logpath} ]];then
+    mkdir -p ${logpath}
+fi
+
+print "Wait ${iod} to boot up..."
+sleep 120
+
+# distribute run_io.sh
+name=$(python ../basic/python/ior.py -d ${iod} -p ${password} -r 'hostname' -t 300)
+print "Distributing run_io.sh to ${name}..."
+
+python ../basic/python/ior.py -d ${iod} -p ${password} -r 'test -f run_io.sh'
+flag=$(python ../basic/python/ior.py -d ${iod} -p ${password} -r 'echo $?')
+if [[ ${flag} -ne 0 ]];then
+    print "Distributing run_io.sh to ${iod}"
+    python ../basic/python/ior.py -d ${iod} -p ${password} -s "touch run_io.sh"    
+    python ../basic/python/ior.py -d ${iod} -p ${password} -s "echo 'while(true)' >> run_io.sh"    
+    python ../basic/python/ior.py -d ${iod} -p ${password} -s "echo 'do' >> run_io.sh"   
+    python ../basic/python/ior.py -d ${iod} -p ${password} -s "echo 'mkfile 500m /ior_pool/fs/fcior_test' >> run_io.sh"   
+    python ../basic/python/ior.py -d ${iod} -p ${password} -s "echo 'sleep 1' >> run_io.sh"   
+    python ../basic/python/ior.py -d ${iod} -p ${password} -s "echo 'mv /ior_pool/fs/fcior_test /export/home/' >> run_io.sh"
+    python ../basic/python/ior.py -d ${iod} -p ${password} -s "echo 'sleep 1' >> run_io.sh"
+    python ../basic/python/ior.py -d ${iod} -p ${password} -s "echo 'rm -f /ior_pool/fs/fcior_test' >> run_io.sh"
+    python ../basic/python/ior.py -d ${iod} -p ${password} -s "echo 'sleep 1' >> run_io.sh"
+    python ../basic/python/ior.py -d ${iod} -p ${password} -s "echo 'mv /export/home/fcior_test /ior_pool/fs/' >> run_io.sh"
+    python ../basic/python/ior.py -d ${iod} -p ${password} -s "echo 'sleep 1' >> run_io.sh"
+    python ../basic/python/ior.py -d ${iod} -p ${password} -s "echo 'rm -f /ior_pool/fs/fcior_test' >> run_io.sh"
+    python ../basic/python/ior.py -d ${iod} -p ${password} -s "echo 'sleep 1' >> run_io.sh"
+    python ../basic/python/ior.py -d ${iod} -p ${password} -s "echo 'done' >> run_io.sh"   
+    python ../basic/python/ior.py -d ${iod} -p ${password} -s "chmod +x run_io.sh"
+    print "Done"
+fi
+
+# make filesystem
+logical_path=$(python ../basic/python/ior.py -d ${iod} -p ${password} -s "luxadm probe|grep Path")
+disk=${logical_path%s2}
+eval "python ../basic/python/ior.py -d ${iod} -p ${password} -s 'zpool create -f ior_pool ${disk}'"
+python ../basic/python/ior.py -d ${iod} -p ${password} -s "zfs create ior_pool/fs"
+python ../basic/python/ior.py -d ${iod} -p ${password} -s "nohup ~/run_io.sh &"
+eval "python ../basic/python/ior.py -d ${iod} -p ${password} -r 'iostat -xn 3 3|grep ${disk}'"

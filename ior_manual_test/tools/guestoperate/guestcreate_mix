@@ -1,0 +1,23 @@
+#!/usr/bin/ksh -p
+ldgname=$1
+zfs clone rpool/s12_fc@ior-1023 rpool/s12_$ldgname
+zfs clone rpool/s11_fc@ior-1110 rpool/s11_$ldgname
+#zfs create -V 20G rpool/s12_$ldgname
+#zfs create -V 20G rpool/s11_$ldgname
+ldm add-domain $ldgname
+ldm add-vcpu 8 $ldgname
+ldm add-memory 16G $ldgname
+ldm add-vnet vnet_$ldgname p-vsw0 $ldgname
+ldm add-vdsdev /dev/zvol/dsk/rpool/s12_$ldgname s12_$ldgname@p-vds0
+ldm add-vdisk vdisk_s12_$ldgname  s12_$ldgname@p-vds0 $ldgname
+ldm add-vdsdev /dev/zvol/dsk/rpool/s11_$ldgname s11_$ldgname@p-vds0
+ldm add-vdisk vdisk_s11_$ldgname  s11_$ldgname@p-vds0 $ldgname
+#ldm add-vdsdev /export/home/sol-12_0-50-text-sparc.iso vcd_s12@p-vds0
+#ldm add-vdisk vcd_$ldgname_s12  vcd_s12@p-vds0 $ldgname
+#ldm add-vdsdev /export/home/sol-11_3-9-text-sparc.iso vcd_s11@p-vds0
+#ldm add-vdisk vcd_$ldgname_s11  vcd_s11@p-vds0 $ldgname
+ldm set-var auto-boot\?=false $ldgname
+#ldm set-var auto-boot\?=true $ldgname
+#ldm set-var boot-device=vdisk1 $ldgname
+ldm bind $ldgname
+ldm start $ldgname

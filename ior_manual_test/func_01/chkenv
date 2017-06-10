@@ -1,0 +1,22 @@
+#!/usr/bin/ksh -p
+
+source ../basic/test.cfg
+
+typeset nprd1=${NPRD_A}
+typeset nprd2=${NPRD_B}
+typeset iod=${IOD}
+typeset password=${SOURCE_DOMAIN_PASSWORD}
+
+test_nprd1=$(python ../basic/python/ior.py -d ${nprd1} -p ${password} -r 'hostname')
+[[ $? -ne 0 ]] && return 1
+test_nprd2=$(python ../basic/python/ior.py -d ${nprd2} -p ${password} -r 'hostname')
+[[ $? -ne 0 ]] && return 1
+test_iod=$(python ../basic/python/ior.py -d ${iod} -p ${password} -r 'hostname')
+[[ $? -ne 0 ]] && return 1
+
+print "NPRD1:${test_nprd1}"
+print "NPRD2:${test_nprd2}"
+print "IOD:${test_iod}"
+
+ldm list-io|grep ${iod} 
+

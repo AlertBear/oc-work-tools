@@ -1,0 +1,13 @@
+#!/usr/bin/ksh -p
+
+source ./test.cfg
+
+typeset nprd1=${NPRD_A}
+typeset nprd2=${NPRD_B}
+typeset iod=${IOD}
+typeset password=${SOURCE_DOMAIN_PASSWORD}
+
+
+python ./python/ior.py -d ${nprd1} -p ${password} -s "hostname ${nprd1}"
+python ./python/ior.py -d ${nprd2} -p ${password} -s "hostname ${nprd2}"
+python ./python/ior.py -d ${iod} -p ${password} -s "hostname ${iod}"

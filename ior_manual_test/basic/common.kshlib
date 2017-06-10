@@ -1,0 +1,165 @@
+#!/usr/bin/ksh -p
+
+tmpfile=$(mktemp)
+
+function find_vdisk
+{
+    typeset ldgname=$1
+
+    ldm list-bindings -p ${ldgname}|grep VDISK > ${tmpfile}
+    typeset i=0
+    while IFS='|' read vdiskl namef voll timeoutl devl serverl mpgroupl idl;do
+       	typeset name="" 
+       	eval ${namef}
+       	name_array[$i]=${name} 
+       	i=`expr $i + 1`
+    done < ${tmpfile}
+    echo ${name_array[*]}
+} 
+
+function find_volume
+{
+    typeset ldgname=$1
+
+    ldm list-bindings -p ${ldgname}|grep VDISK > ${tmpfile}
+    typeset i=0
+    while IFS='|' read vdiskl namel volf timeoutl devl serverl mpgroupl idl;do
+       	typeset vol="" 
+       	eval ${volf}
+       	vol_array[$i]=${vol#@} 
+       	i=`expr $i + 1`
+    done < ${tmpfile}
+    echo ${vol_array[@]}
+}
+
+
+function create_snapshot
+{
+    typeset source_vdisk=$1
+
+    vol=""
+    source_vol_string=`ldm list-bindings -p ${source}|grep ${source_vdisk}|awk -F'|' '{print $3}'`
+    eval ${source_vol_string}
+    source_vol=$(print ${vol}|sed 's/\@.*//g')
+    source_dev=$(ldm list-services -p|grep ${source_vol}|awk -F'|' '{print $4}')
+    source_dev=${source_dev##*/dev/zvol/dsk/}
+
+    sleep 3
+    source_snapshot=${source_dev}@$(date +%m%d%H)
+    zfs snapshot ${source_snapshot}
+    if [[ $? != 0 ]];then
+        return 1
+    fi
+    echo ${source_snapshot}
+}
+
+function create_domain
+{
+    typeset source_snapshot=$1
+    typeset ldgname=$2
+    
+    zfs clone ${source_snapshot} rpool/${ldgname}
+    if [[ $? != 0 ]];then
+        return 1
+    fi
+    ldm add-domain $ldgname
+    if [[ $? != 0 ]];then
+        return 1
+    fi
+    ldm add-vcpu 8 $ldgname
+    if [[ $? != 0 ]];then
+        return 1
+    fi
+    
+    ldm add-memory 16G $ldgname
+    if [[ $? != 0 ]];then
+        return 1
+    fi
+
+    typeset name=""
+    vsw_equation=$(ldm list-services -p|grep VSW|awk -F'|' '{print $2}')    
+    eval ${vsw_equation} 
+    ldm add-vnet vnet_$ldgname ${name} $ldgname
+    if [[ $? != 0 ]];then
+        return 1
+    fi
+
+    vds_equation=$(ldm list-services -p|grep VDS|awk -F'|' '{print $2}')
+    eval ${vds_equation}
+    ldm add-vdsdev /dev/zvol/dsk/rpool/$ldgname $ldgname@${name}
+    if [[ $? != 0 ]];then
+        return 1
+    fi
+
+    ldm add-vdisk vdisk_$ldgname  $ldgname@${name} $ldgname
+    if [[ $? != 0 ]];then
+        return 1
+    fi
+
+    ldm set-var auto-boot\?=true $ldgname
+    ldm bind $ldgname
+    if [[ $? != 0 ]];then
+        return 1
+    fi
+#    ldm start $ldgname
+#    if [[ $? != 0 ]];then
+#        return 1
+#    fi
+    
+    return 0
+}
+
+function destroy_domain
+{
+    typeset ldgname=$1
+    ldm stop -f $ldgname
+    ldm unbind $ldgname
+    ldm remove-vcpu 8 $ldgname
+    ldm remove-memory 16G $ldgname
+    ldm remove-vnet vnet_$ldgname $ldgname
+    ldm remove-vdisk vdisk_$ldgname  $ldgname
+    
+    typeset name=""
+    vds_equation=$(ldm list-services -p|grep VDISK|awk -F'|' '{print $2}')
+    eval ${vds_equation}
+    ldm remove-vdsdev $ldgname@${name}
+
+    ldm destroy $ldgname
+    zfs destroy rpool/$ldgname
+}
+
+function create_vf_manual
+{
+    typeset port_wwn=$1
+    typeset node_wwn=$2
+    typeset pf=$3
+
+    ldm create-vf port-wwn=${port_wwn} node-wwn=${node_wwn} ${pf}
+    if [[ $? != 0 ]];then
+        return 1
+    fi           
+    return 0
+}
+
+function destroy_vf
+{
+    typeset vf=$1
+    ldm destroy-vf ${vf}
+    if [[ $? != 0 ]];then
+        return 1
+    fi           
+    return 0
+}
+
+function destroy_all_vfs_on_pf
+{
+   typeset pf=$1
+   ldm destroy-vf -n max ${pf}
+   if [[ $? != 0 ]];then
+       return 1
+   fi           
+   return 0
+}
+
+
+

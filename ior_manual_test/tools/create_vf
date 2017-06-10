@@ -1,0 +1,26 @@
+#!/usr/bin/ksh -p
+
+. ../basic/common.kshlib
+. ../basic/test.cfg
+
+pf=$1
+count=$2
+
+num=$((count-1))
+if [[ $pf == $PF_A ]];then
+    for i in {0..$num};do
+        port_wwn=$(echo "\$PORT_WWN_PF_A_VF$i")
+        node_wwn=$(echo "\$NODE_WWN_PF_A_VF$i")
+        eval "ldm create-vf port-wwn=$port_wwn node-wwn=$node_wwn $pf"
+    done
+elif [[ $pf == $PF_B ]];then
+    for i in {0..$num};do
+        port_wwn=$(echo "\$PORT_WWN_PF_B_VF$i")
+        node_wwn=$(echo "\$NODE_WWN_PF_B_VF$i")
+        eval "ldm create-vf port-wwn=$port_wwn node-wwn=$node_wwn $pf"
+    done
+else
+    print "PF provided not in config file"
+    ldm create-vf -n $num $pf	
+fi
+    

@@ -1,0 +1,150 @@
+#!/usr/bin/ksh -p
+
+. ../basic/common.kshlib
+
+source ../basic/test.cfg
+
+typeset pf1=${PF_A}
+typeset pf2=${PF_B}
+
+typeset iod=${IOD}
+typeset IOD0=${IOD}
+
+#check whether vdbench exists in io domains
+python ../basic/python/ior.py -d ${iod} -p ${password} -s 'test -d vdbench'
+flag=$(python ../basic/python/ior.py -d ${iod} -p ${password} -r 'echo $?')
+[ ${flag} -ne 0 ] && print "Vdbench not exists" && exit 1
+
+#Destroy all the VFs which have been created
+tmpfile=$(mktemp)
+ldm list-io|grep "${pf1}\.VF" > ${tmpfile}
+if [[ $? -eq 0 ]];then
+    while read uvf nVF nBUS udomain;do
+    if [[ ${udomain} != "" ]];then
+            ldm rm-io ${uvf} ${udomain}
+            sleep 3
+    fi
+    done < ${tmpfile}
+ldm destroy-vf -n max ${pf1}
+fi
+
+tmpfile1=$(mktemp)
+ldm list-io|grep "${pf2}\.VF" > ${tmpfile1}
+if [[ $? -eq 0 ]];then
+    while read uvf nVF nBUS udomain;do
+    if [[ ${udomain} != "" ]];then
+            ldm rm-io ${uvf} ${udomain}
+            sleep 3
+    fi
+    done < ${tmpfile}
+ldm destroy-vf -n max ${pf2}
+fi
+
+re_pf1=${pf1//\//\\\/}
+re_pf1=${re_pf1/\./\\\.}
+cmd_get_pf_line=$(echo "ldm list-io -l|sed -n '/${re_pf1} /='")
+pf_line_num=$(eval ${cmd_get_pf_line})
+maxvfs_line_num=$((${pf_line_num} + 2))
+#maxvfs=$(eval "ldm list-io -l|sed -n '${maxvfs_line_num}p'|awk -F'=' '{print $2}'")
+maxvfs_equation=$(eval "ldm list-io -l|sed -n '${maxvfs_line_num}p'")
+maxvfs_count=$(echo ${maxvfs_equation}|awk -F'=' '{print $2}')
+maxvfs_pf1=`expr ${maxvfs_count} - 1`
+
+re_pf2=${pf2//\//\\\/}
+re_pf2=${re_pf2/\./\\\.}
+cmd_get_pf_line=$(echo "ldm list-io -l|sed -n '/${re_pf2} /='")
+pf_line_num=$(eval ${cmd_get_pf_line})
+maxvfs_line_num=$((${pf_line_num} + 2))
+#maxvfs=$(eval "ldm list-io -l|sed -n '${maxvfs_line_num}p'|awk -F'=' '{print $2}'")
+maxvfs_equation=$(eval "ldm list-io -l|sed -n '${maxvfs_line_num}p'")
+maxvfs_count=$(echo ${maxvfs_equation}|awk -F'=' '{print $2}')
+maxvfs_pf2=`expr ${maxvfs_count} -1`
+
+if [[ ${maxvfs_pf1} -le ${maxvfs_pf2} ]];then
+    maxvfs=${maxvfs_pf1}
+fi
+
+# create io domains
+source_vdisk_iod=$(find_vdisk ${source})
+print "creating snapshot of source domain..."
+source_snapshot_iod=$(create_snapshot ${source_vdisk})
+if [[ $? != 0 ]];then
+    print "Failed to create snapshot of ${source}"
+    return 1
+fi
+
+((maxvfs--))
+for i in {1..$maxvfs}
+do
+    created_iod=$(echo \${IOD$i})
+    eval "create_domain ${source_snapshot_iod} ${created_iod}"
+    if [[ $? != 0 ]];then
+        print "Failed to create ${created_iod}"
+        return 1
+    fi
+done
+
+for i in {0..$maxvfs}
+do
+    get_port_wwn=$(echo \${PORT_WWN_PF_A_VF$i})
+    get_node_wwn=$(echo \${NODE_WWN_PF_A_VF$i})
+    eval "ldm create-vf port-wwn=${get_port_wwn} node-wwn=${get_node_wwn} ${pf1}" > ${tmpfile} 
+    [[ $? -ne  0 ]] && print "Failed to create $i vf" && return 1
+    created_vf=$(tail -1 ${tmpfile}|awk -F':' '{print $2}')
+    print "Created ${created_vf}"
+    sleep 3
+    assigned_iod=$(echo \${IOD$i})
+    eval "ldm add-io ${created_vf} ${assigned_iod}" 
+    [[ $? -ne  0 ]] && print "Failed to assigned $i vf" && return 1
+    print "Assigned ${created_vf} to ${iod}"
+    sleep 3
+done
+
+for i in {0..$maxvfs}
+do
+    get_port_wwn=$(echo \${PORT_WWN_PF_B_VF$i})
+    get_node_wwn=$(echo \${NODE_WWN_PF_B_VF$i})
+    eval "ldm create-vf port-wwn=${get_port_wwn} node-wwn=${get_node_wwn} ${pf2}" > ${tmpfile} 
+    [[ $? -ne  0 ]] && print "Failed to create $i vf" && return 1
+    created_vf=$(tail -1 ${tmpfile}|awk -F':' '{print $2}')
+    print "Created ${created_vf}"
+    sleep 3
+    assigned_iod=$(echo \${IOD$i})
+    eval "ldm add-io ${created_vf} ${assigned_iod}" 
+    [[ $? -ne  0 ]] && print "Failed to assigned $i vf" && return 1
+    print "Assigned ${created_vf} to ${iod}"
+    sleep 3
+done
+
+
+for i in {0..${maxvfs}}
+do
+    reboot_iod=$(echo \${IOD$i})
+    eval "ldm stop -r ${reboot_iod}"
+done
+
+if ![[ -d ${logpath} ]];then
+    mkdir -p ${logpath}
+fi
+
+print "waitting all new created io domains boot up..."
+sleep 120
+for i in {0..${maxvfs}}
+do
+    check_iod=$(echo \${IOD$i})
+    eval "python ../basic/python/ior.py -d ${iod} -p ${password} -r 'hostname' -t 300"
+    print "${iod} boot up success"
+done
+#run vdbench on domain
+for i in {0..2}
+do
+    iod=$(echo \${IOD$i})
+    print ${iod}
+    logical_path=$(eval "python ../basic/python/ior.py -d ${iod} -p ${password} -s 'luxadm probe|grep Path'")
+    disk=${logical_path%s2}
+    eval "python ../basic/python/ior.py -d ${iod} -p ${password} -s 'rm ~/vdbench/ior.*'"
+    eval "python ../basic/python/ior.py -d ${iod} -p ${password} -s \"sed '/c0t0d0sx/s/c0t0d0sx/${disk}/' ~/vdbench/example1 > ~/vdbench/ior.cfg.test\""
+    eval "python ../basic/python/ior.py -d ${iod} -p ${password} -s \"sed 's/elapsed=10/elapsed=3600/' ~/vdbench/ior.cfg.test > ~/vdbench/ior.cfg\""
+    eval "python ../basic/python/ior.py -d ${iod} -p ${password} -s 'nohup ~/vdbench/vdbench -f ~/vdbench/ior.cfg > /dev/null 2>&1 &'"
+    eval "python ../basic/python/ior.py -d ${iod} -p ${password} -r 'iostat -xn 3 3|grep ${disk}'"
+done

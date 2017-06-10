@@ -1,0 +1,152 @@
+#!/usr/bin/ksh -p
+
+. common.kshlib
+. test.cfg
+
+typeset source=${SOURCE_DOMAIN}
+typeset nprd1=${NPRD_A}
+typeset nprd2=${NPRD_B}
+typeset pf1=${PF_A}
+typeset pf2=${PF_B}
+typeset iod=${IOD}
+typeset logpath=${LOGPATH}
+
+function get_bus_of_pf
+{
+    pf=$1
+    pcie_1=${pf%/IOVFC.PF[0123]}
+    bus=""
+    bus_equation=$(ldm list-io -p|grep PCIE|grep ${pcie_1}|awk -F'|' '{print $7}')
+    eval ${bus_equation}
+    echo ${bus}
+}
+
+function has_value
+{
+    element=$1
+    array=$2
+    for item in ${array};do
+        if [[ ${element} == ${item} ]];then
+            return 0
+        fi
+    done            
+    return 1
+}
+
+function destroy_domain
+{
+    domain=$1
+    ldm stop -f ${domain}
+    [ $? -ne 0 ] && return 1
+    ldm unbind ${domain}
+    [ $? -ne 0 ] && return 1
+    ldm rm-vcpu 8 ${domain}
+    [ $? -ne 0 ] && return 1
+    ldm rm-memory 16G ${domain}
+    [ $? -ne 0 ] && return 1
+    ldm rm-vnet vnet_${domain} ${domain}
+    [ $? -ne 0 ] && return 1
+    ldm rm-vdisk vdisk_${domain} ${domain}
+    [ $? -ne 0 ] && return 1
+
+    vds=$(ldm list-services -p|grep VDS|gawk -F'[|=]' '{print $3}')
+    ldm rm-vdsdev ${domain}@${vds}
+    [ $? -ne 0 ] && return 1
+    ldm destroy ${domain}
+    [ $? -ne 0 ] && return 1
+    zfs destroy rpool/${domain}
+    [ $? -ne 0 ] && return 1
+    return 0
+}
+
+function get_volume_of_domain
+{
+    i=0
+    vdisk_num=$(ldm list-bindings $1|grep VDISK|wc -l)    
+    vdsdev_array=$(ldm list-bindings -p fc|grep VDISK|gawk -F'[|=@]' '{print $5}')
+    for vdsdev in ${vdsdev_array};do
+        volume=$(ldm list-services -p|grep ${vdsdev}|awk -F'|' '{print $4}'|awk -F'=' '{print $2}') 
+        volume_array[$i]=${volume#'/dev/zvol/dsk/'}
+        (( i++ ))
+    done
+    echo ${volume_array}
+}
+
+typeset bus_1=$(get_bus_of_pf ${pf1})
+typeset bus_2=$(get_bus_of_pf ${pf2})
+
+typeset tempfile=$(mktemp)
+for bus in ${bus_1} ${bus_2};do
+    typeset i=0
+    ldm list-io -p|grep type=VF|grep bus=${bus_1} > ${tempfile1}
+    while read ndev ualias nstatus udomain ntype nbus;do
+        alias=""
+        domain=""
+        eval ${udomain}
+        eval ualias
+        if [[ ${domain} != "" ]];then
+            ldm rm-io ${alias} ${domain}
+        fi
+        pf=${alias%'\.VF[0-9]\+'}
+        if !$(has_value ${pf} ${pf_array});then
+            pf_array[$i]=${pf}
+            (( i++ ))
+        fi
+    done < ${tempfile}
+done
+
+for destroy_pf in ${pf_array};do
+    ldm destroy-vf -n max ${destroy_pf}
+done
+
+for domain_to_destroy in ${nprd1} ${nprd2} ${iod};do
+    print "Destroying ${domain_to_destroy}..."
+    destroy_domain ${domain_to_destroy}
+    [ $? -ne 0 ] && print "Failed to destroy ${domain_to_destroy}" 
+done
+
+typeset source_volume_array=$(get_volume_of_domain ${source})
+typeset i=0
+for source_volume in ${source_volume_array};do
+    try_get_snapshot=$(zfs list -t snapshot|grep ${source_volume})
+    if [ -n ${try_snapshot} ];then
+       snapshot_array[$i]=${try_get_snapshot} 
+       (( i++ ))
+    fi
+done
+
+once_destroy_flag=false
+while true
+do
+    if ${once_destroy_flag};then
+        print "Do you want to continue?(y/[n])" 
+        yes_array=("y" "Y" "")
+        no_array=("n" "N")
+        read continue_flag
+        if $(has_value ${continue_flag} ${yes_array});then
+             
+        elif $(has_value ${continue_flag} ${no_array});
+            break    
+        else
+            print "Please input the y or n"
+            continue
+        fi
+    fi
+    for j in {0..${#snapshot_array[*]}};do
+        print "[$j] ${snapshot_array[$j]}"
+    done
+    print "Which snapshot do you want to destroy?"
+    read input
+    if [ ${input} -lt ${#snapshot_array[*]} ] && [ ${input} -ge 0 ];then
+        destroy_snapshot_num=${input}
+        zfs destroy ${snapshot_array[${destroy_snapshot_num}]}
+        ${once_destroy_flag}=true
+        unset ${snapshot_array[${destroy_snapshot_num}]}
+        if (( ${#snapshot_array[*]} == 0 ));then
+            break
+        fi
+    else
+        "Please input the number below" 
+    fi            
+done
+

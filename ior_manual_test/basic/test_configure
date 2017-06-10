@@ -1,0 +1,123 @@
+#!/usr/bin/ksh -p
+
+. common.kshlib
+. test.cfg
+
+typeset source=${SOURCE_DOMAIN}
+typeset nprd1=${NPRD_A}
+typeset nprd2=${NPRD_B}
+typeset pf1=${PF_A}
+typeset pf2=${PF_B}
+typeset iod=${IOD}
+typeset logpath=${LOGPATH}
+
+
+ldm list ${source} > /dev/null 2>&1
+if [[ $? != 0 ]];then
+    print "source domain ${source} is not exist"
+    return 1
+fi
+
+ldm list ${nprd1} > /dev/null 2>&1
+if [[ $? != 0 ]];then
+    print "creating domain ${nprd1} is not exist"
+    return 1
+fi
+
+ldm list ${nprd2} > /dev/null 2>&1
+if [[ $? != 0 ]];then
+    print "creating domain ${nprd2} is not exist"
+    return 1
+fi
+
+ldm list ${iod} > /dev/null 2>&1
+if [[ $? != 0 ]];then
+    print "creating domain ${iod} is not exist"
+    return 1
+fi
+
+source_vdisk_array=( $(find_vdisk ${source}) )
+typeset count=${#source_vdisk_array[*]}
+
+while true
+do
+    i=0
+    print -u1 "which disk do you want to snapshot and clone?"
+    for vdisk in ${source_vdisk_array[*]};do
+        print -u1 "["$i"]"${vdisk}
+        i=`expr $i + 1`
+    done
+    read input_num
+    if [[ ${input_num} -lt 0 || ${input_num} -gt `expr ${count} - 1` ]];then
+        print -u1 "number out of range"
+    else
+        break
+    fi
+done
+
+source_vdisk=${source_vdisk_array[${input_num}]}
+print -u1 "creating snapshot of source domain..."
+source_snapshot=$(create_snapshot ${source_vdisk})
+if [[ $? != 0 ]];then
+    print "Failed to create snapshot of ${source}"
+    return 1
+fi
+create_domain ${source_snapshot} ${nprd1}
+if [[ $? != 0 ]];then
+    print "Failed to create ${nprd1}"
+    return 1
+fi
+create_domain ${source_snapshot} ${nprd2}
+if [[ $? != 0 ]];then
+    print "Failed to create ${nprd2}"
+    return 1
+fi
+create_domain ${source_snapshot} ${iod}
+if [[ $? != 0 ]];then
+    print "Failed to create ${iod}"
+    return 1
+fi    
+
+mkdir -p ${logpath}
+
+# Add pci bus to root domains
+pcie_1=${pf1%/IOVFC.PF[0123]}
+bus=""
+bus_equation=$(ldm list-io -p|grep PCIE|grep ${pcie_1}|awk -F'|' '{print $7}')
+eval ${bus_equation}  
+ldm add-io iov=on ${bus} ${nprd1}
+
+pcie_2=${pf2%/IOVFC.PF[0123]}
+bus=""
+bus_equation=$(ldm list-io -p|grep PCIE|grep ${pcie_2}|awk -F'|' '{print $7}')
+eval ${bus_equation}  
+ldm add-io iov=on ${bus} ${nprd2}
+
+ldm start ${nprd1}
+ldm start ${nprd2}
+ldm start ${iod}
+print "Wait NPRD and IOD to boot up..."
+sleep 150
+
+python ./python/ior.py -d ${nprd1} -p ${password} -s "hostname ${nprd1}" -t 300
+python ./python/ior.py -d ${nprd2} -p ${password} -s "hostname ${nprd2}" -t 300
+python ./python/ior.py -d ${iod} -p ${password} -s "hostname ${iod}" -t 300
+
+is_mpxio=$(python ./python/ior.py -d ${nprd1} -p ${password} -r "sed -n '/^mpxio-disable=.*;$/p' /kernel/drv/fp.conf")
+echo ${is_mpxio}|grep "no"
+if [ $? -ne 0 ];then
+    print "MPxIO is disabled, trying to enable"
+    # config to enable mpxio
+    python ./python/ior.py -d ${nprd1} -p ${password} \
+        -s "sed '/^mpxio-disable=.*;$/s/yes/no/' /kernel/drv/fp.conf > /kernel/drv/fp.conf.new"
+    python ./python/ior.py -d ${nprd1} -p ${password} \
+        -s "rm /kernel/drv/fp.conf"
+    python ./python/ior.py -d ${nprd1} -p ${password} \
+        -s "mv /kernel/drv/fp.conf.new /kernel/drv/fp.conf"
+
+    ldm stop -r ${iod}
+    print "Reboot ${iod} and wait to be up"
+    sleep 120
+    python ./python/ior.py -d ${iod} -p ${password} -s "hostname" -t 300
+fi
+

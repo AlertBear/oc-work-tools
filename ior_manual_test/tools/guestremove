@@ -1,0 +1,33 @@
+#!/usr/bin/ksh -p
+
+ldgname=$1
+
+ldm stop -f $ldgname
+ldm unbind $ldgname
+
+ncpu=""
+ncpu_equation=$(ldm list -p $ldgname|tail -1|cut -d'|' -f6)
+eval $ncpu_equation
+ldm remove-vcpu $ncpu $ldgname
+
+mem=""
+mem_equation=$(ldm list -p $ldgname|tail -1|cut -d'|' -f7)
+eval $mem_equation
+ldm remove-memory $mem $ldgname
+
+name=""
+name_equation=$(ldm list-bindings -p $ldgname|grep VNET|cut -d'|' -f2)
+eval $name_equation
+ldm remove-vnet $name $ldgname
+
+name_equation=$(ldm list-bindings -p $ldgname|grep VDISK|cut -d'|' -f2)
+eval $name_equation
+ldm remove-vdisk $name  $ldgname
+
+vol=""
+vol_equation=$(ldm list-bindings -p $ldgname|grep VDISK|cut -d'|' -f3)
+eval $vol_equation
+ldm remove-vdsdev $vol
+
+ldm destroy $ldgname
+zfs destroy rpool/$ldgname

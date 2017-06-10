@@ -1,0 +1,96 @@
+#!/usr/bin/ksh -p
+
+. ../basic/common.kshlib
+
+source ../basic/test.cfg
+
+typeset pf1=${PF_A}
+typeset pf3=${PF_C}
+
+typeset iod=${IOD}
+typeset logpath=${LOGPATH}
+
+# destroy all the VFs which have been created
+tmpfile0=$(mktemp)
+ldm list-io|grep "${pf1}\.VF" > ${tmpfile0}
+if [[ $? -eq 0 ]];then
+    while read uvf nVF nBUS udomain;do
+        if [[ ${udomain} != "" ]];then
+            ldm rm-io ${uvf} ${udomain}
+        fi
+    done < ${tmpfile0}
+    ldm destroy-vf -n max ${pf1}
+fi
+
+tmpfile1=$(mktemp)
+ldm list-io|grep "${pf3}\.VF" > ${tmpfile1}
+if [[ $? -eq 0 ]];then
+    while read uvf nVF nBUS udomain;do
+        if [[ ${udomain} != "" ]];then
+            ldm rm-io ${uvf} ${udomain}
+        fi
+    done < ${tmpfile1}
+    ldm destroy-vf -n max ${pf3}
+fi
+
+# create new VFs 
+tmpfile2=$(mktemp)
+ldm create-vf ${pf1} > ${tmpfile2}
+if [[ $? != 0 ]];then
+    return 1
+else
+    vf0_pf1=$(awk -F':' '{print $2}' ${tmpfile2})
+    print "Created ${vf0_pf1}"
+fi        
+sleep 1
+
+tmpfile3=$(mktemp)
+ldm create-vf ${pf3} > ${tmpfile3}
+if [[ $? != 0 ]];then
+    return 1
+else
+    vf0_pf3=$(awk -F':' '{print $2}' ${tmpfile3})
+    print "Created ${vf0_pf3}"
+fi
+sleep 1
+
+tmpfile4=$(mktemp)
+ldm create-vf ${pf1} > ${tmpfile4}
+if [[ $? != 0 ]];then
+    return 1
+else
+    vf1_pf1=$(awk -F':' '{print $2}' ${tmpfile4})
+    print "Created ${vf1_pf1}"
+fi
+sleep 1
+
+tmpfile5=$(mktemp)
+ldm create-vf ${pf2} > ${tmpfile5}
+if [[ $? != 0 ]];then
+    return 1
+else
+    vf1_pf3=$(awk -F':' '{print $2}' ${tmpfile5})
+    print "Created ${vf1_pf3}"
+fi
+
+print "Allocating ${vf0_pf1} to ${iod}"
+ldm add-io ${vf0_pf1} ${iod}
+print "Done"
+sleep 1
+print "Allocating ${vf1_pf1} to ${iod}"
+ldm add-io ${vf1_pf1} ${iod}
+print "Done"
+sleep 1
+print "Allocating ${vf0_pf3} to ${iod}"
+ldm add-io ${vf0_pf3} ${iod}
+print "Done"
+sleep 1
+print "Allocating ${vf1_pf3} to ${iod}"
+ldm add-io ${vf1_pf3} ${iod}
+print "Done"
+
+ldm stop -r ${iod}
+
+if [[ ! -d ${logpath} ]];then
+    mkdir -p ${logpath}
+fi

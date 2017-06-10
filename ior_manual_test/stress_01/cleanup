@@ -1,0 +1,38 @@
+#!/usr/bin/ksh -p
+
+. ../basic/common.kshlib
+
+source ../basic/test.cfg
+
+typeset pf1=${PF_A}
+typeset pf2=${PF_B}
+
+typeset iod=${IOD}
+
+python ../basic/python/ior.py -d ${iod} -p ${password} -s "ps -ef|grep vdbench|grep -v grep|awk '{print $2}'|xargs kill -9"
+
+#Destroy all the VFs which have been created
+tmpfile=$(mktemp)
+ldm list-io|grep "${pf1}\.VF" > ${tmpfile}
+if [[ $? -eq 0 ]];then
+    while read uvf nVF nBUS udomain;do
+        if [[ ${udomain} != "" ]];then
+              ldm rm-io ${uvf} ${udomain}
+              sleep 3
+        fi
+    done < ${tmpfile}
+    ldm destroy-vf -n max ${pf1}
+fi
+
+tmpfile1=$(mktemp)
+ldm list-io|grep "${pf2}\.VF" > ${tmpfile1}
+if [[ $? -eq 0 ]];then
+    while read uvf nVF nBUS udomain;do
+        if [[ ${udomain} != "" ]];then
+              ldm rm-io ${uvf} ${udomain}
+              sleep 3
+        fi
+    done < ${tmpfile}
+    ldm destroy-vf -n max ${pf2}
+fi
+

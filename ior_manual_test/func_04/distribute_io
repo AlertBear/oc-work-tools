@@ -1,0 +1,24 @@
+#!/usr/bin/ksh -p
+
+python ../basic/python/ior.py -d ${iod} -p ${password} -r 'test -f run_io.sh'
+flag=$(python ../basic/python/ior.py -d ${iod} -p ${password} -r 'echo $?')
+if [[ ${flag} -ne 0 ]];then
+    print "Distributing run_io.sh to ${iod}"
+    python ../basic/python/ior.py -d ${iod} -p ${password} -r "touch run_io.sh"    
+    python ../basic/python/ior.py -d ${iod} -p ${password} -r "echo 'while(true)' >> run_io.sh"    
+    python ../basic/python/ior.py -d ${iod} -p ${password} -r "echo 'do' >> run_io.sh"   
+    python ../basic/python/ior.py -d ${iod} -p ${password} -r "echo 'mkfile 500m /ior_pool/fs/fcior_test' >> run_io.sh"   
+    python ../basic/python/ior.py -d ${iod} -p ${password} -r "echo 'sleep 1' >> run_io.sh"   
+    python ../basic/python/ior.py -d ${iod} -p ${password} -r "echo 'mv /ior_pool/fs/iorfc_test /export/home/' >> run_io.sh"
+    python ../basic/python/ior.py -d ${iod} -p ${password} -r "echo 'sleep 1' >> run_io.sh"
+    python ../basic/python/ior.py -d ${iod} -p ${password} -r "echo 'rm -f /ior_pool/fs/iorfc_test' >> run_io.sh"
+    python ../basic/python/ior.py -d ${iod} -p ${password} -r "echo 'sleep 1' >> run_io.sh"
+    python ../basic/python/ior.py -d ${iod} -p ${password} -r "echo 'mv /export/home/iorfc_test /ior_pool/fs/' >> run_io.sh"
+    python ../basic/python/ior.py -d ${iod} -p ${password} -r "echo 'sleep 1' >> run_io.sh"
+    python ../basic/python/ior.py -d ${iod} -p ${password} -r "echo 'rm -f /ior_pool/fs/iorfc_test' >> run_io.sh"
+    python ../basic/python/ior.py -d ${iod} -p ${password} -r "echo 'sleep 1' >> run_io.sh"
+    python ../basic/python/ior.py -d ${iod} -p ${password} -r "echo 'done' >> run_io.sh"   
+    python ../basic/python/ior.py -d ${iod} -p ${password} -r "chmod +x run_io.sh"
+    print "Done"
+fi
+

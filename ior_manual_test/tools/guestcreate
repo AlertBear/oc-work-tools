@@ -1,0 +1,24 @@
+#!/usr/bin/ksh -p
+
+ldgname=$2
+snapshot=$1
+
+zfs clone $snapshot rpool/$ldgname
+#zfs create -V 20G rpool/$ldgname
+ldm add-domain $ldgname
+ldm add-vcpu 8 $ldgname
+ldm add-memory 16G $ldgname
+
+typeset name=""
+vsw_equation=$(ldm list-services -p|grep VSW|awk -F'|' '{print $2}')
+eval ${vsw_equation}
+ldm add-vnet vnet_${ldgname} ${name} ${ldgname}
+
+vds_equation=$(ldm list-services -p|grep VDS|awk -F'|' '{print $2}')
+eval ${vds_equation}
+ldm add-vdsdev /dev/zvol/dsk/rpool/${ldgname} ${ldgname}@${name}
+ldm add-vdisk vdisk_${ldgname} ${ldgname}@${name} ${ldgname}
+
+ldm set-var auto-boot\?=true $ldgname
+ldm bind $ldgname
+ldm start $ldgname

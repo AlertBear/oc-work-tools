@@ -1,0 +1,14 @@
+#!/usr/bin/ksh -p
+
+pf=$1
+domain=$2
+
+maxvfs=""
+maxvfs_equation=$(ldm list-io -l -p $1|grep maxvfs|cut -d'|' -f3)
+eval $maxvfs_equation
+
+for i in {0..$((maxvfs-1))};do
+    ldm rm-io ${pf}.VF$i $domain
+    sleep 1
+done
+

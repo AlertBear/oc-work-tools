@@ -1,0 +1,40 @@
+#!/usr/bin/ksh -p
+
+source ../basic/test.cfg
+
+typeset nprd1=${NPRD_A}
+typeset nprd2=${NPRD_B}
+typeset iod=${IOD}
+typeset password=${SOURCE_DOMAIN_PASSWORD}
+typeset logfile=$(echo ${LOGPATH}/stress_02_panic)
+typeset i=0
+
+python ../basic/python/ior.py -d ${nprd1} -p ${password} -r 'hostname'
+python ../basic/python/ior.py -d ${nprd2} -p ${password} -r 'hostname'
+python ../basic/python/ior.py -d ${iod} -p ${password} -r 'hostname'
+
+rm -f ${logfile}
+touch ${logfile}
+
+ldm list-io|grep ${iod} > ${logfile}
+echo " " >> ${logfile}
+
+python ../basic/python/ior.py -d ${iod} -p ${password} -r 'hotplug list -lv' -l ${logfile}
+echo "\n\n\n" >> ${logfile}
+
+echo "---------------------" >> ${logfile}
+python ../basic/python/ior.py -d ${nprd1} -p ${password} --panic &
+echo "panic ${nprd1}" >> ${logfile}
+echo "---------------------" >> ${logfile}
+echo "\n\n\n" >> ${logfile}
+
+sleep 10
+
+while [[ $i < 10 ]];do
+    python ../basic/python/ior.py -d ${iod} -p ${password} -r 'hotplug list -lv' -l ${logfile}
+    echo " " >> ${logfile}
+    python ../basic/python/ior.py -d ${iod} -p ${password} -r 'iostat -xn 1 3' -l ${logfile}
+    echo " " >> ${logfile}
+    i=$(($i + 1))
+    sleep 15
+done

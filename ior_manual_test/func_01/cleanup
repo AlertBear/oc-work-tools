@@ -1,0 +1,25 @@
+#!/usr/bin/ksh -p
+
+. ../basic/common.kshlib
+
+source ../basic/test.cfg
+
+typeset pf1=${PF_A}
+typeset pf2=${PF_B}
+
+typeset iod=${IOD}
+typeset nprd1=${NPRD_A}
+typeset nprd2=${NPRD_B}
+
+tmpfile=$(mktemp)
+ldm list-io |grep ${iod} |perl -e 'print reverse <>' > ${tmpfile}
+while read uvf nVF nbus udomain;do
+    ldm rm-io ${uvf} ${udomain}
+    if [[ $? -ne 0 ]];then
+        return 1
+    else
+        print "Remove ${uvf} from ${udomain} success"
+        ldm destroy-vf ${uvf}
+    fi
+done < ${tmpfile}
+

@@ -1,0 +1,11 @@
+#!/usr/bin/ksh -p
+ldgname=$1
+ldm stop -f $ldgname
+ldm unbind $ldgname
+ldm remove-vcpu 8 $ldgname
+ldm remove-memory 16G $ldgname
+ldm remove-vnet vnet_$ldgname $ldgname
+ldm remove-vdisk vdisk_s12_$ldgname  $ldgname
+ldm remove-vdsdev s12_$ldgname@p-vds0
+ldm destroy $ldgname
+zfs destroy rpool/s12_$ldgname
